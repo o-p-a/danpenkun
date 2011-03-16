@@ -15,165 +15,250 @@ ruby
 #
 # 2011/03/01 opa
 
+require 'optparse'
+
+ProgName = 'DanPenKun'
+Version = '0.00'
+DANPENLIBPATHNAME = "DANPENLIB"
+
 class MyError < StandardError
 end
 
-def print_info(s)
-       printf("%s\n", s)
-end
-
-def print_warn(s)
-end
-
-def print_error(s)
-end
-
 def varinit
-       $danpen = {}
-       $danpenlibpath = ""
-       $filename = ""
-       $line = ""
+	$danpen = {}
+	$danpenlibpath = ENV[DANPENLIBPATHNAME]
+	$filename = ""
+	$line = 0
 end
 
-def parse_option
-       false
+# メッセージを出力する
+def print_info(level, msg)
+	# TODO:警告レベルの実装
+
+	if $filename.size == 0
+		printf($stderr, "%s\n", "#{ProgName}: #{msg}")
+	elsif $line == 0
+		printf($stderr, "%s\n", "#{$filename}: #{msg}")
+	else
+		printf($stderr, "%s\n", "#{$filename}:#{$line}: #{msg}")
+	end
+
+	return true
 end
+
+# 警告メッセージを出力する
+def print_warn(level, msg)
+	# TODO:警告レベルの実装
+
+	if $filename.size == 0
+		printf($stderr, "%s\n", "#{ProgName} warning: #{msg}")
+	elsif $line == 0
+		printf($stderr, "%s\n", "#{$filename}: warning: #{msg}")
+	else
+		printf($stderr, "%s\n", "#{$filename}:#{$line}: warning: #{msg}")
+	end
+
+	return true
+end
+
+# エラーメッセージを出力して終了する
+def print_error(level, msg)
+	if $filename.size == 0
+		raise MyError, "#{ProgName} error: #{msg}"
+	elsif $line == 0
+		raise MyError, "#{$filename}: error: #{msg}"
+	else
+		raise MyError, "#{$filename}:#{$line}: error: #{msg}"
+	end
+end
+
+## Windows環境下かどうか判定する
+#def os_is_windows
+#	return RUBY_PLATFORM.downcase =~ /(ms|cyg|bcc)win(?!ce)|mingw/
+#end
 
 def determine_encode(filename)
-       false
+	false
 end
 
 def load_danpenlib_1(filename)
-       determine_encode(filename)
+	determine_encode(filename)
 
-       infile = File.open(filename)
+	# TODO:エンコードの処理
+	# TODO:エラー処理
+	# TODO:バイナリ(.exeなど)を読んでも落ちないように
 
-       aline = infile.readline
+	$filename = filename
+	$line = 0
+	infile = File.open(filename)
 
-       flag = {}
-       separator = ""
-       library_name = ""
-       begin_mark = ""
+	aline = infile.readline
 
-       # BUG:先頭10行程度を見る
+	flag = {}
+	library_name = ""
+	begin_mark = ""
+	paste_begin_mark = ""
+	end_mark = ""
 
-       if aline =~ /^(\S+)\s+danpenlib\s*:(.*)$/i
-               separator = $1.strip
-               library_name = $2.strip
-       end
+	# BUG:先頭10行程度を見る
 
-       if separator == ""
-               # TODO: エラー全般にファイル名と行番号表示
-               p filename + ": is not danpenlib"
-               return false
-       end
+	if aline =~ /^(.*)\sdanpenlib\s*:(.*)$/
+		begin_mark = $1.strip
+		library_name = $2.strip
+	end
 
-       print_info(sprintf("Reading library: %s", library_name))
+	if begin_mark == ""
+		print_warn(0, "Not danpenlib")
+		return false
+	end
 
-       danpen_name = ""
-       state = "header"
-       infile.each_line do |aline|
-               aline = aline.chomp
+	print_info(0, "Reading library \"#{library_name}\"")
 
-               if aline =~ /^#{Regexp.escape(separator)}(.*)$/
-                       s = $1.strip
-                       if s =~ /^danpendef\s*:(.*)$/i
-                               s = $1.strip
+	danpen_name = ""
+	state = :header
+	infile.each_line do |aline|
+		aline = aline.chomp
+		$line = $line + 1
 
-                               if s.size == 0
-                                       raise MyError, "Missing danpen name"
-                               else
-                                       if s =~ /^(\S+)\s*\((.*)\)\s*$/
-                                               danpen_name = $1.strip
-                                               section_option = $2.strip
-                                       elsif s =~ /^(\S+)\s*$/
-                                               danpen_name = $1.strip
-                                               section_option = ""
-                                       else
-                                               # 現仕様ではUnreachable?
-                                               raise MyError, sprintf("Danpendef syntax error: %s", s)
-                                       end
+		if aline.strip =~ /^#{Regexp.escape(begin_mark)}(.*)#{Regexp.escape(end_mark)}$/
+			s = $1.strip
 
-                                       # TODO: dup check
+			if s.size == 0
+				state = :gap
+			elsif s =~ /^danpendef\s*:(.*)$/
+				s = $1.strip
 
-#                                       printf("Reading danpen: %s\n", danpen_name)
-                                       state = "danpendef"
+				if s.size == 0
+					print_error(0, "Missing danpen name")
+				else
+					if s =~ /^(\S+)\s*\((.*)\)$/
+						danpen_name = $1
+						section_option = $2.strip
+					elsif s =~ /^(\S+)$/
+						danpen_name = $1
+						section_option = ""
+					else
+						print_error(0, "Danpendef syntax error: #{aline}")
+					end
 
-                                       $danpen[danpen_name] = { :name => danpen_name, :body => [], :flag => flag }
-                               end
-                       elsif s == ""
-                               state = "gap"
-                       end
-               else
-                       case state
-                       when "header"
-                               if aline =~ /^\s*(\w+)\s*:(.*)$/
-                                       k = $1.strip
-                                       v = $2.strip
-                                       flag[k] = v
+					# TODO: dup check
 
-                                       # TODO:ちゃんと処理する
-                                       case k
-                                       when "Coding"
-                                       when "Begin_Mark"
-                                               begin_mark = v
-                                       when "Begin_Refer"
-                                               begin_mark = v
-                                       when "Snippet_Begin"
-                                               begin_mark = v
-                                       end
-                               else
-                                       sprintf("Danpenlib syntax error: %s", s)
-                               end
-                       when "danpendef"
-                               if aline =~ /^#{Regexp.escape(begin_mark)}\s+(\S+)/
-                                       $danpen[danpen_name][:body].push({ :type => :danpen, :val => $1.strip })
-                               else
-                                       $danpen[danpen_name][:body].push({ :type => :text, :val => aline })
-                               end
-                       when "gap"
-                               # TODO:無視することでよい?
-                       else
-                               raise MyError, "Unknown State"
-                       end
-               end
-       end
+					print_info(0, "Reading danpen: #{danpen_name}")
+					$danpen[danpen_name] = { :name => danpen_name, :body => [], :flag => flag }
+					state = :danpendef
+				end
+			else
+				print_error(0, "Danpenlib syntax error: #{aline}")
+			end
+		else
+			case state
+			when :header
+				s = aline.strip
+				if s.size == 0
+					# NOP
+				elsif s =~ /^(\w+)\s*:(.*)$/
+					k = $1.strip
+					v = $2.strip
+					flag[k] = v
 
-       infile.close
+					# TODO:ちゃんと処理する
+					case k
+					when "Coding"
+					when "Paste_Begin_Mark"
+						paste_begin_mark = v
+					when "End_Mark"
+						end_mark = v
+						state = :gap
+					end
+				else
+					print_error(0, "Danpenlib syntax error: #{aline}")
+				end
+			when :danpendef
+				if aline.strip =~ /^#{Regexp.escape(paste_begin_mark)}(.*)#{Regexp.escape(end_mark)}$/
+					s = $1.strip
+					$danpen[danpen_name][:body].push({ :type => :danpen, :val => s })
+				else
+					$danpen[danpen_name][:body].push({ :type => :text, :val => aline })
+				end
+			when :gap
+				# NOP
+			else
+				# Unreachable
+				print_error(0, "Undefined State: #{state.to_s}")
+			end
+		end
+	end
 
-       return true
+	infile.close
+	$filename = ""
+
+	return true
 end
 
+# $danpenlibpath を見て断片ライブラリを順番に読み込む
 def load_danpenlib
-       # TODO: パスの検索とワイルドカード展開してライブラリを全て読み込む
-       load_danpenlib_1("string.danpen.cpp")
+	if $danpenlibpath == nil
+		print_error(0, "Missing environment variable: #{DANPENLIBPATHNAME}")
+	end
 
-       # TODO: show_danpenlib
+	if File::ALT_SEPARATOR != nil
+		$danpenlibpath = $danpenlibpath.gsub(File::ALT_SEPARATOR, File::SEPARATOR)
+	end
 
-       true
+	$danpenlibpath.split(File::PATH_SEPARATOR).each do |a_path|
+		if a_path.size > 0
+			if File.directory?(a_path)
+				Dir.foreach(a_path) do |a_file|
+					if File.file?(a_file)
+						load_danpenlib_1(a_file)
+					end
+				end
+			else
+				Dir.glob(a_path) do |a_file|
+					if File.file?(a_file)
+						load_danpenlib_1(a_file)
+					end
+				end
+			end
+		end
+#		print_error(0, "Danpenlib not found: #{a_path}")
+	end
+
+	true
 end
 
-def do_danpen
-       false
+# 断片展開処理本体
+def do_danpen(file)
+	false
+end
+
+# コマンドラインオプションを解釈する
+def parse_option
+	# TODO: 未完成
+
+	false
 end
 
 def main()
-       begin
+	begin
 
-               varinit
+		varinit
 
-               parse_option
+		parse_option
 
-               load_danpenlib
+		load_danpenlib
 
-               do_danpen
+		# TODO: show_danpenlib
 
-       rescue MyError => eo
-               printf("%s\n", eo.message)
-               return 1
-       end
+		do_danpen(nil)
 
-       return 0
+	rescue MyError => eo
+		printf($stderr, "%s\n", eo.message)
+		return 1
+	end
+
+	return 0
 end
 
 exit main
+
