@@ -1,12 +1,10 @@
-﻿
-// ======== danpenlib: Misc
-Coding: UTF-8
-Mode: C++
-Description: Misc C++ Library
-Paste_Begin_Mark: // --------
+﻿// ========== danpenlib: Misc
+caoding: UTF-8
+mode: C++
+description: Misc C++ Library
+paste_begin_mark: // ----------
 
-// ======== danpendef: stdtype
-// ======== danpendef: String (once)
+// ========== danpendef: stdtype
 
 typedef signed char schar;
 typedef unsigned char uchar;
@@ -26,9 +24,9 @@ typedef const uint cuint;
 typedef const slong cslong;
 typedef const ulong culong;
 
-// ======== danpendef: credit1998
+// ========== danpendef: credit1998
 
 #define CREDIT		"(c)1998"
 
-// ========
+// ==========
 
