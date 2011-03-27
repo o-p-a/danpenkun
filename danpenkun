@@ -1,0 +1,761 @@
+#! /usr/bin/ruby
+# coding: UTF-8
+
+# 断片くん
+#
+# 2011/03/01 opa
+
+require 'optparse'
+require 'kconv'
+require 'pathname'
+require 'shellwords'
+require 'fileutils'
+
+ProgName = 'DanPenKun'
+Version = '0.01'
+DANPENLIBPATHNAME = "DANPENLIB"
+
+# ---------- os_is_windows
+
+# Windows環境下かどうか判定する
+def os_is_windows
+	return RUBY_PLATFORM.downcase =~ /(ms|cyg|bcc)win(?!ce)|mingw/
+end
+
+# ----------
+
+# ---------- determine_encode
+
+# エンコードを判定(推測)する
+def determine_encode(filename)
+	# 先頭部分を読み込み
+	data = File.read(filename, 2000, 0)
+	data = "" if data.nil?
+	data.force_encoding("ASCII-8BIT")
+
+	# coding指定があればそれを信じる
+	if data =~ /coding[:=]\s*([\w.-]+)/
+		coding = $1
+
+		case coding.upcase
+		when "UTF-8"
+			return "BOM|" + coding if data[0..2] == "\xEF\xBB\xBF".force_encoding("ASCII-8BIT")
+		when "UTF-16BE"
+			return "BOM|" + coding if data[0..1] == "\xFE\xFF".force_encoding("ASCII-8BIT")
+		when "UTF-16LE"
+			return "BOM|" + coding if data[0..1] == "\xFF\xFE".force_encoding("ASCII-8BIT")
+		when "UTF-32BE"
+			return "BOM|" + coding if data[0..3] == "\x00\x00\xFE\xFF".force_encoding("ASCII-8BIT")
+		when "UTF-32LE"
+			return "BOM|" + coding if data[0..3] == "\xFF\xFE\x00\x00".force_encoding("ASCII-8BIT")
+		end
+
+		return coding
+	end
+
+	# BOMがあればそれを信じる
+	return "BOM|UTF-32BE"		if data[0..3] == "\x00\x00\xFE\xFF".force_encoding("ASCII-8BIT")
+	return "BOM|UTF-32LE"		if data[0..3] == "\xFF\xFE\x00\x00".force_encoding("ASCII-8BIT")
+	return "BOM|UTF-8"			if data[0..2] == "\xEF\xBB\xBF".force_encoding("ASCII-8BIT")
+	return "BOM|UTF-16BE"		if data[0..1] == "\xFE\xFF".force_encoding("ASCII-8BIT")
+	return "BOM|UTF-16LE"		if data[0..1] == "\xFF\xFE".force_encoding("ASCII-8BIT")
+
+	# いずれもなければKconvで推測する
+	return Kconv.guess(data).to_s
+end
+
+# ----------
+
+# ---------- determine_newlinechar
+
+# 改行文字を判定(推測)する
+def determine_newlinechar(filename)
+	# 先頭部分を読み込み
+	data = File.read(filename, 2000, 0)
+	data = "" if data.nil?
+	data.force_encoding("ASCII-8BIT")
+
+	# それぞれの改行の個数を数える
+	crlf_count = data.scan(/\r\n/).count
+	cr_count = data.scan(/\r/).count - crlf_count
+	lf_count = data.scan(/\n/).count - crlf_count
+
+	# 多数決っぽく判定する
+	if crlf_count < cr_count
+		if cr_count > lf_count
+			return "\r" # CR
+		else
+			return "\n" # LF
+		end
+	else
+		if crlf_count > lf_count
+			return "\r\n" # CRLF
+		elsif crlf_count < lf_count
+			return "\n" # LF
+		end
+	end
+
+	# どれともいえないときはOSで判定
+	if os_is_windows
+		return "\r\n" # CRLF
+	else
+		return "\n" # LF
+	end
+end
+
+# ----------
+
+# ---------- MsgLogger
+
+class MsgLogger
+	module Severity
+		DEBUG = 0
+		INFO = 1
+		WARN = 2
+		ERROR = 3
+		FATAL = 4
+	end
+	include Severity
+
+	def initialize(os = $stderr)
+		@os = os
+		self.prefix = nil
+		self.level = WARN # これ以上を出力する
+	end
+
+	# @prefix 関係
+
+	def get_prefix
+		if @prefix.nil?
+			return File.basename($PROGRAM_NAME, ".*")
+		elsif @prefix.is_a?(Proc) || @prefix.is_a?(Method)
+			return @prefix.call.to_s
+		else
+			return @prefix.to_s
+		end
+	end
+
+	attr_writer :prefix
+
+	# @level 関係
+
+	attr_reader :level
+
+	def level=(new_level)
+		if new_level >= DEBUG && new_level <= FATAL
+			return @level = new_level
+		else
+			raise ArgumentError
+		end
+	end
+
+	# (0)低レベルの情報
+	def debug(message)
+		if @level <= DEBUG
+			printf(@os, "%s: %s\n", get_prefix, message)
+		end
+	end
+
+	# (1)一般的な情報
+	def info(message)
+		if @level <= INFO
+			printf(@os, "%s: %s\n", get_prefix, message)
+		end
+	end
+
+	# (2)警告
+	def warn(message)
+		if @level <= WARN
+			printf(@os, "%s: warning: %s\n", get_prefix, message)
+		end
+	end
+
+	# (3)エラー
+	def error(message)
+		if @level <= ERROR
+			printf(@os, "%s: error: %s\n", get_prefix, message)
+		end
+		raise MyError
+	end
+
+	# (4)プログラムをクラッシュさせるような制御不可能なエラー
+	def fatal(message)
+		if @level <= FATAL
+			printf(@os, "%s: fatal: %s\n", get_prefix, message)
+		end
+		raise MyError
+	end
+end
+
+# ----------
+
+class MyError < StandardError
+end
+
+class Danpen_body
+	def initialize(type = nil, value = nil)
+		@type = type
+		@value = value
+	end
+
+	attr_accessor :type, :value
+end
+
+class Danpen
+	def initialize
+		# 基本情報
+		@name = ""
+		@desc = ""
+		@filename = ""
+		@line = 0
+		@body = []
+
+		# オプション類
+		@expand_once = false	# 一度しか展開しないかどうか
+
+		# 展開情報
+		@expand_count = 0		# 展開された回数
+	end
+
+	def reset_counter()
+		@expand_count = 0
+	end
+
+	attr_accessor :name, :desc, :filename, :line, :body
+	attr_accessor :expand_once
+	attr_accessor :expand_count
+end
+
+def var_init
+	# ストリームの設定
+	$stdin.set_encoding('locale:UTF-8') # EXT:INT
+	$stdout.set_encoding('locale:UTF-8')
+	$stderr.set_encoding('locale:UTF-8')
+
+	# ワークエリア関係
+	$danpen = {}
+	$danpenlibpath = ""
+	$danpenlibpath_default = ENV[DANPENLIBPATHNAME]
+	$filename = ""
+	$line = 0
+	$outbuf = []
+	$log = MsgLogger.new
+	$log.prefix = method(:msg_prefix)
+	$log.level = MsgLogger::INFO
+
+	# 設定関係
+	$paste_begin_mark = ""
+	$end_mark = ""
+	$danpenlist = false
+	$make_backup = true
+	$expand_danpen = true
+	$output_mark = true
+	$output_filename = ""
+	$diff = false
+end
+
+# メッセージ表示のプレフィクスを編集する
+def msg_prefix
+#p $filename
+	if $filename.empty?
+		return "#{ProgName}"
+	elsif $line == 0
+		return "#{$filename}"
+	else
+		return "#{$filename}:#{$line}"
+	end
+end
+
+# 断片ライブラリをひとつ読み込む処理
+def load_danpenlib_1(filename)
+	$filename = filename
+	$line = 0
+
+	library_name = ""
+	flag = {}
+	begin_mark = ""
+	paste_begin_mark = ""
+	end_mark = ""
+	danpen_name = ""
+
+	# ファイルが読めなければエラー
+	if !File.readable?(filename)
+		$log.error("Cannot read")
+	end
+
+	# 文字コードを決定
+	encode = determine_encode(filename)
+	$log.debug("Assuming encode: #{encode}")
+
+	# とりあえず全体を読んじゃう ついでにUTF-8に統一する
+	infile = []
+	File.open(filename, "r:#{encode}:internal") do |is|
+		infile = is.readlines
+
+		$line = 0
+		infile.each do |aline|
+			$line += 1
+
+			begin
+				aline.encode!("UTF-8")
+			rescue Encoding::UndefinedConversionError
+				$log.error("Invalid byte sequence in #{encode}")
+			end
+
+			if !aline.valid_encoding?
+				$log.error("Invalid byte sequence in #{encode}")
+			end
+		end
+	end
+
+	# 「danpenlib」の行があるかどうか確認
+	$line = 0
+	infile.each do |aline|
+		aline = aline.chomp
+		$line += 1
+
+		if $line > 20
+			break
+		end
+
+		if aline =~ /^(.*)\sdanpenlib\s*:(.*)$/
+			begin_mark = $1.strip
+			library_name = $2.strip
+			break
+		end
+	end
+
+	# なければdanpenlibではない → 何もせずリターン
+	if begin_mark.empty?
+		$line = 0
+		$err.warn("Not danpenlib")
+		return false
+	end
+
+	$log.debug("Reading library \"#{library_name}\"")
+
+	state = :header
+	while $line < infile.size
+		aline = infile[$line].chomp
+		$line += 1
+
+		if aline.strip =~ /^#{Regexp.escape(begin_mark)}(.*)#{Regexp.escape(end_mark)}$/
+			s = $1.strip
+
+			if s.empty?
+				state = :gap
+			elsif s =~ /^danpendef\s*:(.*)$/
+				s = Shellwords.shellwords($1)
+
+				if s.empty?
+					$log.error("Missing danpen name")
+				else
+					danpen_name = s.shift
+					if $danpen.include?(danpen_name)
+						$log.error("Duplicate danpen: #{danpen_name}")
+					end
+
+					$log.debug("Reading danpen: #{danpen_name}")
+					d = Danpen.new
+					d.name = danpen_name
+					d.filename = $filename
+					d.line = $line
+
+					s.each do |opt|
+						case opt
+						when "once"
+							d.expand_once = true
+						else
+							$log.error("Danpendef syntax error: #{aline}")
+						end
+					end
+
+					$danpen[danpen_name] = d
+					state = :danpendef
+				end
+			else
+				$log.error("Danpenlib syntax error: #{aline}")
+			end
+		else
+			case state
+			when :header
+				s = aline.strip
+				if s.empty?
+					# NOP
+				elsif s =~ /^(\w+)\s*:(.*)$/
+					k = $1.strip
+					v = $2.strip
+					flag[k] = v
+
+					case k
+					when "paste_begin_mark"
+						paste_begin_mark = v
+						$paste_begin_mark = v if $paste_begin_mark.empty?
+					when "end_mark"
+						end_mark = v
+						$end_mark = v if $end_mark.empty?
+						state = :gap
+					end
+				else
+					$log.error("Danpenlib header syntax error: #{aline}")
+				end
+			when :danpendef
+				if !paste_begin_mark.empty? && aline.strip =~ /^#{Regexp.escape(paste_begin_mark)}(.*)#{Regexp.escape(end_mark)}$/
+					s = $1.strip
+					if !s.empty?
+						b = Danpen_body.new
+						b.type = :danpen
+						b.value = s
+						$danpen[danpen_name].body.push(b)
+					end
+				else
+					b = Danpen_body.new
+					b.type = :text
+					b.value = aline
+					$danpen[danpen_name].body.push(b)
+				end
+			when :gap
+				# 無視領域: 何もしない
+			else
+				# Unreachable
+				$log.fatal("Undefined state: #{state.to_s}")
+			end
+		end
+	end
+
+	$filename = ""
+end
+
+# $danpenlibpath を見て断片ライブラリを順番に読み込む
+def load_danpenlib
+	# ライブラリの場所が与えられていなければ警告
+	if $danpenlibpath.nil?
+		$log.warn("Missing danpenlib location")
+		$danpenlibpath = ""
+	end
+
+	# (例えば)Windowsの場合、"\\"を"/"に置換
+	if !File::ALT_SEPARATOR.nil?
+		$danpenlibpath = $danpenlibpath.gsub(File::ALT_SEPARATOR, File::SEPARATOR)
+	end
+
+	$danpenlibpath.split(File::PATH_SEPARATOR).each do |a_path|
+		if !a_path.empty?
+			a_path = Pathname(a_path)
+			files = []
+
+			# ディレクトリなら、その中のファイルを一つづつ...
+			# さもなくば、ワイルドカード展開した結果を一つづつ...
+			if File.directory?(a_path)
+				Dir.foreach(a_path) do |a_file|
+					a_file = a_path + a_file
+					if File.file?(a_file)
+						files.push(a_file.to_s)
+					end
+				end
+			else
+				Dir.glob(a_path) do |a_file|
+					if File.file?(a_file)
+						files.push(a_file.to_s)
+					end
+				end
+			end
+
+			# ソートしたうえで順に処理する
+			files.sort.each do |a_file|
+				load_danpenlib_1(a_file)
+			end
+		end
+	end
+end
+
+# 出力データを蓄積
+def out(s)
+	$outbuf.push(s)
+end
+
+# 出力データを実際に出力
+def flush_outbuf(input_filename, encode, newlinechar)
+	# 最終的なファイル名を決定
+	filename = $output_filename
+	if filename.empty?
+		filename = input_filename
+	end
+
+	# バックアップ作成
+	if $make_backup
+		if File.exist?(filename)
+			FileUtils.copy_file(filename, filename + ".bak", true)
+		end
+	end
+
+	# エンコードとBOM有無を決定
+	output_encode = encode.sub(/^BOM\|/, "")
+	output_bom = (encode =~ /^BOM\|/) ? true : false
+
+	File.open(filename, "wb:#{output_encode}:internal") do |os|
+		# BOM出力
+		if output_bom
+			os.print("\xFE\xFF".force_encoding("UTF-16BE"))
+		end
+
+		# 本体出力
+		$outbuf.each do |aline|
+			os.printf("%s%s", aline, newlinechar)
+		end
+	end
+end
+
+# 断片ひとつを展開 (再帰的)
+def expand_danpen(danpen_name)
+	$log.debug("Expand danpen: #{danpen_name}")
+
+# TODO:無限展開防止機構
+
+	danpen = $danpen[danpen_name]
+	if !danpen.nil?
+		# いちどしか展開しない断片は、展開済であれば展開しない
+		if danpen.expand_once && danpen.expand_count > 0
+			$log.debug("Already expanded, skip: #{danpen_name}")
+			return
+		end
+
+		# 展開した回数を増やす
+		danpen.expand_count += 1
+
+		# 展開する
+		danpen.body.each do |b|
+			case b.type
+			when :text
+				# TODO : ここで偶然paste_begin_markに相当する文字列だった場合の考慮
+				out(b.value)
+			when :danpen
+				expand_danpen(b.value)
+			else
+				$log.error("Undefined type: #{b.type.to_s} to UTF-8")
+			end
+		end
+	else
+		$log.error("Danpen not defined: #{danpen_name}")
+	end
+end
+
+# 断片展開処理本体
+def do_danpen(filename)
+	$filename = filename
+	$line = 0
+	$outbuf = []
+	paste_begin_mark = $paste_begin_mark
+	end_mark = $end_mark
+	mark_str = (paste_begin_mark + " " + end_mark).strip
+
+	# 使用回数等リセット
+	$danpen.each do |k, v|
+		v.reset_counter
+	end
+
+	# ファイルが読めなければエラー
+	if !File.readable?(filename)
+		$log.error("Cannot read")
+	end
+
+	$log.debug("Begin expand")
+	$log.debug("Expand mark: #{mark_str}")
+
+	# 文字コード・改行コードを決定
+	encode = determine_encode(filename)
+	$log.debug("Assuming encode: #{encode}")
+	newlinechar = determine_newlinechar(filename)
+	$log.debug("Assuming newline character: #{newlinechar.dump}")
+
+	# とりあえず全体を読む ついでにUTF-8に統一する
+	infile = []
+	File.open(filename, "r:#{encode}:internal") do |is|
+		infile = is.readlines
+
+		$line = 0
+		infile.each do |aline|
+			$line += 1
+
+			begin
+				aline.encode!("UTF-8")
+			rescue Encoding::UndefinedConversionError
+				$log.error("Invalid byte sequence in #{encode}")
+			end
+
+			if !aline.valid_encoding?
+				$log.error("Invalid byte sequence in #{encode}")
+			end
+		end
+	end
+
+	# 処理本体
+	state = :normal
+	$line = 0
+	infile.each do |aline|
+		aline = aline.chomp
+		$line += 1
+
+		if !paste_begin_mark.empty? && aline.strip =~ /^#{Regexp.escape(paste_begin_mark)}(.*)#{Regexp.escape(end_mark)}$/
+			danpen_name = $1.strip
+			case state
+			when :normal
+				# この行自体は(オプションで抑止されていなければ)そのまま出力する
+				if $output_mark
+					out(aline)
+				end
+
+				# 展開内容を展開する
+				if !danpen_name.empty?
+					if $expand_danpen
+						expand_danpen(danpen_name)
+					end
+					if $output_mark
+						out(mark_str)
+					end
+					state = :expand
+				end
+			when :expand
+				if danpen_name.empty?
+					state = :normal
+				else
+					$log.error("Missing end mark (#{mark_str})")
+				end
+			else
+				# Unreachable
+				$log.fatal("Undefined state: #{state.to_s}")
+			end
+		else
+			case state
+			when :normal
+				out(aline)
+			when :expand
+				# NOP
+			else
+				# Unreachable
+				$log.fatal("Undefined state: #{state.to_s}")
+			end
+		end
+	end
+	$line += 1
+
+	case state
+	when :normal
+		# NOP
+	when :expand
+		$log.error("Missing end mark (#{mark_str})")
+	else
+		# Unreachable
+		$log.fatal("Undefined state: #{state.to_s}")
+	end
+	$filename = ""
+
+	flush_outbuf(filename, encode, newlinechar)
+end
+
+# 断片一覧処理
+def do_danpenlist
+
+	$danpen.sort.each do |k, v|
+		print(k)
+#		if v.expand_once
+#			print(" once")
+#		end
+		print("\n")
+	end
+end
+
+# コマンドラインオプションを解釈する
+def parse_option
+	ARGV.options do |opt|
+		opt.banner = "Usage: #{ProgName} [options] file..."
+
+		opt.on("-L", "--library-path=searchdir", String,
+			"断片ライブラリのパス") do |v|
+			if $danpenlibpath.empty?
+				$danpenlibpath = v
+			else
+				$danpenlibpath = $danpenlibpath + File::PATH_SEPARATOR + v
+			end
+		end
+
+		opt.on("-s", "--danpenlist",
+			"読み込んだ断片を一覧表示する") do
+			$danpenlist = true
+		end
+
+		opt.on("-b", "--backup",
+			"バックアップを作成する") do
+			$make_backup = true
+		end
+
+		opt.on("--no-backup",
+			"バックアップを作成しない") do
+			$make_backup = false
+		end
+
+		opt.on("-c", "--clean",
+			"展開を行わない(展開結果を削除する)") do
+			$expand_danpen = false
+		end
+
+		opt.on("--finalize",
+			"出荷用に断片挿入用マークを取り除いて出力する") do
+			$output_mark = false
+		end
+
+		opt.on("-m", "--begin-mark=str", String,
+			"断片挿入用マークを指定する") do |v|
+			$paste_begin_mark = v
+		end
+
+		opt.on("-e", "--end-mark=str", String,
+			"断片挿入用マーク終了文字列を指定する") do |v|
+			$end_mark = v
+		end
+
+		opt.on("-o", "--output=filename", String,
+			"出力ファイル名を指定する") do |v|
+			$output_filename = v
+		end
+
+		opt.on("-d", "--diff",
+			"差分を表示する") do
+			$diff = true
+		end
+
+		opt.parse!
+	end
+
+	# ライブラリサーチパスが与えられなかった場合は、既定値
+	if $danpenlibpath.empty?
+		$danpenlibpath = $danpenlibpath_default
+	end
+end
+
+def main()
+	begin
+
+		var_init
+
+		parse_option
+
+		load_danpenlib
+
+		if $danpenlist == true
+			do_danpenlist
+		else
+			ARGV.each do |a|
+				do_danpen(a)
+			end
+		end
+
+	rescue MyError => eo
+		return 1
+	end
+
+	return 0
+end
+
+exit main
+
