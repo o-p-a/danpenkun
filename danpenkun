@@ -15,23 +15,35 @@ ProgName = 'DanPenKun'
 Version = '0.01'
 DANPENLIBPATHNAME = "DANPENLIB"
 
-# ---------- os_is_windows
+#=====dpk===== os_is_windows
 
 # Windows環境下かどうか判定する
 def os_is_windows
-	return RUBY_PLATFORM.downcase =~ /(ms|cyg|bcc)win(?!ce)|mingw/
+	return RUBY_PLATFORM.downcase =~ /mswin(?!ce)|mingw|cygwin|bccwin/
 end
 
-# ----------
+#=====dpk=====
 
-# ---------- determine_encode
+#=====dpk===== determine_encode
+
+require 'kconv'
+
+
+class String
+	def verbatim
+		self.force_encoding(Encoding::BINARY)
+	end
+end
+
 
 # エンコードを判定(推測)する
 def determine_encode(filename)
+#	zwnbsp = "\ufeff"
+
 	# 先頭部分を読み込み
 	data = File.read(filename, 2000, 0)
 	data = "" if data.nil?
-	data.force_encoding("ASCII-8BIT")
+	data.verbatim
 
 	# coding指定があればそれを信じる
 	if data =~ /coding[:=]\s*([\w.-]+)/
@@ -39,34 +51,34 @@ def determine_encode(filename)
 
 		case coding.upcase
 		when "UTF-8"
-			return "BOM|" + coding if data[0..2] == "\xEF\xBB\xBF".force_encoding("ASCII-8BIT")
+			return "BOM|UTF-8"    if data[0..2] == "\xEF\xBB\xBF".verbatim
 		when "UTF-16BE"
-			return "BOM|" + coding if data[0..1] == "\xFE\xFF".force_encoding("ASCII-8BIT")
+			return "BOM|UTF-16BE" if data[0..1] == "\xFE\xFF".verbatim
 		when "UTF-16LE"
-			return "BOM|" + coding if data[0..1] == "\xFF\xFE".force_encoding("ASCII-8BIT")
+			return "BOM|UTF-16LE" if data[0..1] == "\xFF\xFE".verbatim
 		when "UTF-32BE"
-			return "BOM|" + coding if data[0..3] == "\x00\x00\xFE\xFF".force_encoding("ASCII-8BIT")
+			return "BOM|UTF-32BE" if data[0..3] == "\x00\x00\xFE\xFF".verbatim
 		when "UTF-32LE"
-			return "BOM|" + coding if data[0..3] == "\xFF\xFE\x00\x00".force_encoding("ASCII-8BIT")
+			return "BOM|UTF-32LE" if data[0..3] == "\xFF\xFE\x00\x00".verbatim
 		end
 
 		return coding
 	end
 
 	# BOMがあればそれを信じる
-	return "BOM|UTF-32BE"		if data[0..3] == "\x00\x00\xFE\xFF".force_encoding("ASCII-8BIT")
-	return "BOM|UTF-32LE"		if data[0..3] == "\xFF\xFE\x00\x00".force_encoding("ASCII-8BIT")
-	return "BOM|UTF-8"			if data[0..2] == "\xEF\xBB\xBF".force_encoding("ASCII-8BIT")
-	return "BOM|UTF-16BE"		if data[0..1] == "\xFE\xFF".force_encoding("ASCII-8BIT")
-	return "BOM|UTF-16LE"		if data[0..1] == "\xFF\xFE".force_encoding("ASCII-8BIT")
+	return "BOM|UTF-32BE"		if data[0..3] == "\x00\x00\xFE\xFF".verbatim
+	return "BOM|UTF-32LE"		if data[0..3] == "\xFF\xFE\x00\x00".verbatim
+	return "BOM|UTF-8"			if data[0..2] == "\xEF\xBB\xBF".verbatim
+	return "BOM|UTF-16BE"		if data[0..1] == "\xFE\xFF".verbatim
+	return "BOM|UTF-16LE"		if data[0..1] == "\xFF\xFE".verbatim
 
 	# いずれもなければKconvで推測する
 	return Kconv.guess(data).to_s
 end
 
-# ----------
+#=====dpk=====
 
-# ---------- determine_newlinechar
+#=====dpk===== determine_newlinechar
 
 # 改行文字を判定(推測)する
 def determine_newlinechar(filename)
@@ -103,9 +115,9 @@ def determine_newlinechar(filename)
 	end
 end
 
-# ----------
+#=====dpk=====
 
-# ---------- MsgLogger
+#=====dpk===== MsgLogger
 
 class MsgLogger
 	module Severity
@@ -187,7 +199,7 @@ class MsgLogger
 	end
 end
 
-# ----------
+#=====dpk=====
 
 class MyError < StandardError
 end
@@ -244,7 +256,7 @@ def var_init
 	$log.level = MsgLogger::INFO
 
 	# 設定関係
-	$paste_begin_mark = ""
+	$begin_mark = ""
 	$end_mark = ""
 	$danpenlist = false
 	$make_backup = true
@@ -320,6 +332,7 @@ def load_danpenlib_1(filename)
 
 		if aline =~ /^(.*)\sdanpenlib\s*:(.*)$/
 			begin_mark = $1.strip
+			$begin_mark = $1.strip if $begin_mark.empty?
 			library_name = $2.strip
 			break
 		end
@@ -345,7 +358,9 @@ def load_danpenlib_1(filename)
 			if s.empty?
 				state = :gap
 			elsif s =~ /^danpendef\s*:(.*)$/
-				s = Shellwords.shellwords($1)
+				$log.error("Danpenlib syntax error (obsolete keyword danpendef): #{aline}")
+			else
+				s = Shellwords.shellwords(s)
 
 				if s.empty?
 					$log.error("Missing danpen name")
@@ -373,8 +388,6 @@ def load_danpenlib_1(filename)
 					$danpen[danpen_name] = d
 					state = :danpendef
 				end
-			else
-				$log.error("Danpenlib syntax error: #{aline}")
 			end
 		else
 			case state
@@ -390,7 +403,6 @@ def load_danpenlib_1(filename)
 					case k
 					when "paste_begin_mark"
 						paste_begin_mark = v
-						$paste_begin_mark = v if $paste_begin_mark.empty?
 					when "end_mark"
 						end_mark = v
 						$end_mark = v if $end_mark.empty?
@@ -527,7 +539,7 @@ def expand_danpen(danpen_name)
 		danpen.body.each do |b|
 			case b.type
 			when :text
-				# TODO : ここで偶然paste_begin_markに相当する文字列だった場合の考慮
+				# TODO : ここで偶然$begin_markに相当する文字列だった場合の考慮
 				out(b.value)
 			when :danpen
 				expand_danpen(b.value)
@@ -545,9 +557,9 @@ def do_danpen(filename)
 	$filename = filename
 	$line = 0
 	$outbuf = []
-	paste_begin_mark = $paste_begin_mark
+	begin_mark = $begin_mark
 	end_mark = $end_mark
-	mark_str = (paste_begin_mark + " " + end_mark).strip
+	mark_str = (begin_mark + " " + end_mark).strip
 
 	# 使用回数等リセット
 	$danpen.each do |k, v|
@@ -596,23 +608,30 @@ def do_danpen(filename)
 		aline = aline.chomp
 		$line += 1
 
-		if !paste_begin_mark.empty? && aline.strip =~ /^#{Regexp.escape(paste_begin_mark)}(.*)#{Regexp.escape(end_mark)}$/
-			danpen_name = $1.strip
+		if !begin_mark.empty? && aline.strip =~ /^#{Regexp.escape(begin_mark)}(.*)#{Regexp.escape(end_mark)}$/
+			danpen_name = Shellwords.shellwords($1).shift
+			danpen_name = "" if danpen_name.nil?
+
 			case state
 			when :normal
-				# この行自体は(オプションで抑止されていなければ)そのまま出力する
-				if $output_mark
-					out(aline)
-				end
-
-				# 展開内容を展開する
-				if !danpen_name.empty?
-					if $expand_danpen
-						expand_danpen(danpen_name)
-					end
+				if danpen_name.empty?
 					if $output_mark
 						out(mark_str)
 					end
+				else
+					if $output_mark
+						out("#{mark_str} #{danpen_name}")
+					end
+
+					# 展開内容を展開する
+					if $expand_danpen
+						expand_danpen(danpen_name)
+					end
+
+					if $output_mark
+						out(mark_str)
+					end
+
 					state = :expand
 				end
 			when :expand
@@ -672,11 +691,9 @@ def parse_option
 
 		opt.on("-L", "--library-path=searchdir", String,
 			"断片ライブラリのパス") do |v|
-			if $danpenlibpath.empty?
-				$danpenlibpath = v
-			else
-				$danpenlibpath = $danpenlibpath + File::PATH_SEPARATOR + v
-			end
+
+			$danpenlibpath += File::PATH_SEPARATOR if !$danpenlibpath.empty?
+			$danpenlibpath += v
 		end
 
 		opt.on("-s", "--danpenlist",
@@ -684,14 +701,19 @@ def parse_option
 			$danpenlist = true
 		end
 
-		opt.on("-b", "--backup",
-			"バックアップを作成する") do
-			$make_backup = true
+		opt.on("-m", "--begin-mark=str", String,
+			"断片挿入用マーク開始文字列を指定する") do |v|
+			$begin_mark = v
 		end
 
-		opt.on("--no-backup",
-			"バックアップを作成しない") do
-			$make_backup = false
+		opt.on("-e", "--end-mark=str", String,
+			"断片挿入用マーク終了文字列を指定する") do |v|
+			$end_mark = v
+		end
+
+		opt.on("-d", "--diff",
+			"ファイルを更新せずに差分を表示する") do
+			$diff = true
 		end
 
 		opt.on("-c", "--clean",
@@ -700,18 +722,8 @@ def parse_option
 		end
 
 		opt.on("--finalize",
-			"断片挿入用マークを取り除く(出荷用)") do
+			"断片挿入用マークを取り除く(出荷時)") do
 			$output_mark = false
-		end
-
-		opt.on("-m", "--begin-mark=str", String,
-			"断片挿入用マークを指定する") do |v|
-			$paste_begin_mark = v
-		end
-
-		opt.on("-e", "--end-mark=str", String,
-			"断片挿入用マーク終了文字列を指定する") do |v|
-			$end_mark = v
 		end
 
 		opt.on("-o", "--output=filename", String,
@@ -719,9 +731,14 @@ def parse_option
 			$output_filename = v
 		end
 
-		opt.on("-d", "--diff",
-			"差分を表示する") do
-			$diff = true
+		opt.on("-b", "--backup",
+			"バックアップ(.bak)を作成する") do
+			$make_backup = true
+		end
+
+		opt.on("--no-backup",
+			"バックアップ(.bak)を作成しない") do
+			$make_backup = false
 		end
 
 		opt.parse!

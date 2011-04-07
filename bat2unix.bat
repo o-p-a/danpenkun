@@ -15,16 +15,26 @@ ruby
 #
 # 2011/03/29 opa
 
+#=====dpk===== determine_encode
+
 require 'kconv'
 
-# ---------- determine_encode
+
+class String
+	def verbatim
+		self.force_encoding(Encoding::BINARY)
+	end
+end
+
 
 # エンコードを判定(推測)する
 def determine_encode(filename)
+#	zwnbsp = "\ufeff"
+
 	# 先頭部分を読み込み
 	data = File.read(filename, 2000, 0)
 	data = "" if data.nil?
-	data.force_encoding("ASCII-8BIT")
+	data.verbatim
 
 	# coding指定があればそれを信じる
 	if data =~ /coding[:=]\s*([\w.-]+)/
@@ -32,32 +42,32 @@ def determine_encode(filename)
 
 		case coding.upcase
 		when "UTF-8"
-			return "BOM|" + coding if data[0..2] == "\xEF\xBB\xBF".force_encoding("ASCII-8BIT")
+			return "BOM|UTF-8"    if data[0..2] == "\xEF\xBB\xBF".verbatim
 		when "UTF-16BE"
-			return "BOM|" + coding if data[0..1] == "\xFE\xFF".force_encoding("ASCII-8BIT")
+			return "BOM|UTF-16BE" if data[0..1] == "\xFE\xFF".verbatim
 		when "UTF-16LE"
-			return "BOM|" + coding if data[0..1] == "\xFF\xFE".force_encoding("ASCII-8BIT")
+			return "BOM|UTF-16LE" if data[0..1] == "\xFF\xFE".verbatim
 		when "UTF-32BE"
-			return "BOM|" + coding if data[0..3] == "\x00\x00\xFE\xFF".force_encoding("ASCII-8BIT")
+			return "BOM|UTF-32BE" if data[0..3] == "\x00\x00\xFE\xFF".verbatim
 		when "UTF-32LE"
-			return "BOM|" + coding if data[0..3] == "\xFF\xFE\x00\x00".force_encoding("ASCII-8BIT")
+			return "BOM|UTF-32LE" if data[0..3] == "\xFF\xFE\x00\x00".verbatim
 		end
 
 		return coding
 	end
 
 	# BOMがあればそれを信じる
-	return "BOM|UTF-32BE"		if data[0..3] == "\x00\x00\xFE\xFF".force_encoding("ASCII-8BIT")
-	return "BOM|UTF-32LE"		if data[0..3] == "\xFF\xFE\x00\x00".force_encoding("ASCII-8BIT")
-	return "BOM|UTF-8"			if data[0..2] == "\xEF\xBB\xBF".force_encoding("ASCII-8BIT")
-	return "BOM|UTF-16BE"		if data[0..1] == "\xFE\xFF".force_encoding("ASCII-8BIT")
-	return "BOM|UTF-16LE"		if data[0..1] == "\xFF\xFE".force_encoding("ASCII-8BIT")
+	return "BOM|UTF-32BE"		if data[0..3] == "\x00\x00\xFE\xFF".verbatim
+	return "BOM|UTF-32LE"		if data[0..3] == "\xFF\xFE\x00\x00".verbatim
+	return "BOM|UTF-8"			if data[0..2] == "\xEF\xBB\xBF".verbatim
+	return "BOM|UTF-16BE"		if data[0..1] == "\xFE\xFF".verbatim
+	return "BOM|UTF-16LE"		if data[0..1] == "\xFF\xFE".verbatim
 
 	# いずれもなければKconvで推測する
 	return Kconv.guess(data).to_s
 end
 
-# ----------
+#=====dpk=====
 
 def convert(filename)
 	# 拡張子がない場合はスキップ
@@ -83,6 +93,7 @@ def convert(filename)
 		end
 	end
 
+	# #!行がない場合はスキップ
 	if start_line.nil?
 		printf("No shbang: skip: %s\n", filename)
 		return

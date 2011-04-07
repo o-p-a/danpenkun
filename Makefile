@@ -2,10 +2,16 @@
 #
 # 2011/03/20 opa
 
+DANPENLIB = danpen
+DANPENFILES = $(DANPENLIB)/*
+
+DFLAGS = -L $(DANPENLIB) -m '\#=====dpk====='
+
 .PHONY: all
 
-DFLAGS = -L danpen -m '\# ----------'
+all: danpenkun.ini
 
-all:
-	danpenkun $(DFLAGS) danpenkun.ini
+danpenkun.ini: $(DANPENFILES)
+	danpenkun $(DFLAGS) $@
+	bat2unix $@
 
