@@ -9,11 +9,13 @@ DFLAGS = -L $(DANPENLIB) -m '\#=====dpk====='
 
 .PHONY: all
 
-all: danpenkun.ini bat2unix.bat
+all: danpenkun.ini danpenkun
 
-danpenkun.ini: $(DANPENFILES) bat2unix.bat
+danpenkun: danpenkun.ini bat2unix.bat
+	bat2unix $<
+
+danpenkun.ini: $(DANPENFILES)
 	danpenkun $(DFLAGS) $@
-	bat2unix $@
 
 bat2unix.bat: $(DANPENFILES)
 	danpenkun $(DFLAGS) $@

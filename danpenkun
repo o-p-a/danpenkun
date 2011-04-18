@@ -88,9 +88,7 @@ end
 # 改行文字を判定(推測)する
 def determine_newlinechar(filename)
 	# 先頭部分を読み込み
-	data = File.read(filename, 2000, 0)
-	data = "" if data.nil?
-	data.force_encoding("ASCII-8BIT")
+	data = nz(File.read(filename, 2000, 0), "").verbatim
 
 	# それぞれの改行の個数を数える
 	crlf_count = data.scan(/\r\n/).count
@@ -99,13 +97,13 @@ def determine_newlinechar(filename)
 
 	# 多数決っぽく判定する
 	if crlf_count < cr_count
-		if cr_count > lf_count
+		if lf_count < cr_count
 			return "\r" # CR
-		else
+		elsif cr_count < lf_count
 			return "\n" # LF
 		end
-	else
-		if crlf_count > lf_count
+	elsif cr_count < crlf_count
+		if lf_count < crlf_count
 			return "\r\n" # CRLF
 		elsif crlf_count < lf_count
 			return "\n" # LF
@@ -133,6 +131,9 @@ class MsgLogger
 		FATAL = 4
 	end
 	include Severity
+
+	class Error < StandardError
+	end
 
 	def initialize(os = $stderr)
 		@os = os
@@ -192,7 +193,7 @@ class MsgLogger
 		if @level <= ERROR
 			printf(@os, "%s: error: %s\n", get_prefix, message)
 		end
-		raise MyError
+		raise Error, message
 	end
 
 	# (4)プログラムをクラッシュさせるような制御不可能なエラー
@@ -200,14 +201,11 @@ class MsgLogger
 		if @level <= FATAL
 			printf(@os, "%s: fatal: %s\n", get_prefix, message)
 		end
-		raise MyError
+		raise Error, message
 	end
 end
 
 #=====dpk=====
-
-class MyError < StandardError
-end
 
 class Danpen_body
 	def initialize(type = nil, value = nil)
@@ -263,7 +261,7 @@ def var_init
 	# 設定関係
 	$begin_mark = ""
 	$end_mark = ""
-	$danpenlist = false
+	$show_danpenlist = false
 	$make_backup = true
 	$expand_danpen = true
 	$output_mark = true
@@ -273,7 +271,6 @@ end
 
 # メッセージ表示のプレフィクスを編集する
 def msg_prefix
-#p $filename
 	if $filename.empty?
 		return "#{ProgName}"
 	elsif $line == 0
@@ -471,7 +468,7 @@ def load_danpenlib
 					end
 				end
 			else
-				Dir.glob(a_path) do |a_file|
+				Dir.glob(a_path.to_s) do |a_file|
 					if File.file?(a_file)
 						files.push(a_file.to_s)
 					end
@@ -614,8 +611,7 @@ def do_danpen(filename)
 		$line += 1
 
 		if !begin_mark.empty? && aline.strip =~ /^#{Regexp.escape(begin_mark)}(.*)#{Regexp.escape(end_mark)}$/
-			danpen_name = Shellwords.shellwords($1).shift
-			danpen_name = "" if danpen_name.nil?
+			danpen_name = nz(Shellwords.shellwords($1).shift, "")
 
 			case state
 			when :normal
@@ -703,7 +699,7 @@ def parse_option
 
 		opt.on("-s", "--danpenlist",
 			"読み込んだ断片を一覧表示する") do
-			$danpenlist = true
+			$show_danpenlist = true
 		end
 
 		opt.on("-m", "--begin-mark=str", String,
@@ -755,7 +751,7 @@ def parse_option
 	end
 end
 
-def main()
+def main
 	if RUBY_VERSION < "1.9"
 		abort("Must use Ruby 1.9 or later")
 	end
@@ -768,7 +764,7 @@ def main()
 
 		load_danpenlib
 
-		if $danpenlist == true
+		if $show_danpenlist == true
 			do_danpenlist
 		else
 			ARGV.each do |a|
@@ -776,7 +772,7 @@ def main()
 			end
 		end
 
-	rescue MyError => eo
+	rescue MsgLogger::Error
 		return 1
 	end
 

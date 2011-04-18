@@ -1,47 +1,47 @@
-#���̃t�@�C���͍폜���Ȃ��ŉ������B
+﻿#このファイルは削除しないで下さい。
 
-#HISTORY "danpenkun.ini" �f�Ђ���
+#HISTORY "danpenkun.ini" 断片くん
 
 --2009/07/24
 
-�� ���O�Ǘ��J�n
+● ログ管理開始
 
---2011/03/20(��)
+--2011/03/20(日)
 
-�� ���̋ߕӂŖ{�i�I�ɍ쐬�J�n
-�� once �̏����ǉ� (�ŏ���1�񂵂��W�J���Ȃ�)
-�� �I�v�V���� -L �ǉ�
-�� coding:�w�����BOM�����Ă����Ƃ��ɂ� "BOM|" ������悤�ύX
-�� �I�v�V���� --clean �ǉ�
-�� �I�v�V���� --finalize �ǉ�
-�� �I�v�V���� --begin-mark �ǉ�
-�� �I�v�V���� --end-mark �ǉ�
-�� �I�v�V���� --diff �ǉ�
-�� �W�J���ʂŃt�@�C�����X�V���鏈��
-�� �o�b�N�A�b�v���c������
-�� �o�̓t�@�C������C�ӂɂ��鏈��
-�� �f�Ѓ��C�u�����̓\�[�g���������ŏ��ɓǂݍ���
-�� �f�Јꗗ�̕\������
-�� MsgLogger���g���悤�ɂ���
+● この近辺で本格的に作成開始
+● once の処理追加 (最初の1回しか展開しない)
+● オプション -L 追加
+● coding:指定つきでBOMもついていたときには "BOM|" をつけるよう変更
+● オプション --clean 追加
+● オプション --finalize 追加
+● オプション --begin-mark 追加
+● オプション --end-mark 追加
+● オプション --diff 追加
+● 展開結果でファイルを更新する処理
+● バックアップを残す処理
+● 出力ファイル名を任意にする処理
+● 断片ライブラリはソートしたうえで順に読み込む
+● 断片一覧の表示処理
+● MsgLoggerを使うようにした
 
---2011/03/28(��)
+--2011/03/28(月)
 
-�EUNIX�p��StripSctipt.bat�������
-�ERuby�̃o�[�W�����`�F�b�N�ǉ�
-
-
+● UNIX用にStripSctipt.batを作った
+● Rubyのバージョンチェック追加(1.9以降必須)
 
 
 
 
-�E�f�В��ɋ��Rpaste_begin_mark�ɑ������镶���񂪌��ꂽ�ꍇ�̍l��
-�E�t�@�C�����^�����Ȃ������ꍇ�͕W�����o�͂��g�p����
-�E����ƍĎ�荞�݌��ʂ��r���鏈�� (�O��diff�N��)
-�E�ω����������Ƃ��̂ݏ������ޏ���
-�E�����W�J�h�~�@�\
 
 
-�E�}�N���u��?
-�E�����t�W�J?
-�E�f�Јꗗ�ɃR�����g(�ȒP�Ȑ���)���o�͉\�Ƃ���?
+・断片中に偶然paste_begin_markに相当する文字列が現れた場合の考慮
+・ファイルが与えられなかった場合は標準入出力を使用する
+・現状と再取り込み結果を比較する処理 (外部diff起動)
+・変化があったときのみ書き込む処理
+・無限展開防止機構
+
+
+・マクロ置換?
+・条件付展開?
+・断片一覧にコメント(簡単な説明)を出力可能とする?
 
