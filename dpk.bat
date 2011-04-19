@@ -31,6 +31,7 @@ def main
 		{ :ext => ".cpp",		:lib => "#{uld}\\CPP" },
 		{ :ext => ".ch",		:lib => "#{uld}\\CPP" },
 		{ :ext => ".js",		:lib => "#{uld}\\javascript" },
+		{ :ext => ".jsee",		:lib => "#{uld}\\javascript" },
 		{ :ext => ".rb",		:lib => "#{uld}\\ruby" },
 		{ :ext => ".pl",		:lib => "#{uld}\\perl" },
 	]

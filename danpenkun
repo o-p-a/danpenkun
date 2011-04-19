@@ -6,7 +6,6 @@
 # 2011/03/01 opa
 
 require 'optparse'
-require 'kconv'
 require 'pathname'
 require 'shellwords'
 require 'fileutils'
