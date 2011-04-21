@@ -54,6 +54,7 @@ def main
 		end
 	end
 
+	# 断片くん本体を起動する
 	if files.empty?
 		if !system("danpenkun", *opts)
 			return 1
