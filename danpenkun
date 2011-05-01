@@ -1,9 +1,10 @@
 #! /usr/bin/ruby
 # coding: UTF-8
-
+#----------------------------------------------------------------
 # 断片くん
 #
 # 2011/03/01 opa
+#----------------------------------------------------------------
 
 require 'optparse'
 require 'pathname'
@@ -15,7 +16,6 @@ Version = '0.01'
 DANPENLIBPATHNAME = "DANPENLIB"
 
 #=====dpk===== os_is_windows
-
 # Windows環境下かどうか判定する
 def os_is_windows
 	return RUBY_PLATFORM.downcase =~ /mswin(?!ce)|mingw|cygwin|bccwin/
@@ -24,15 +24,12 @@ end
 #=====dpk=====
 
 #=====dpk===== determine_encode
-
 require 'kconv'
-
 
 # nilなら別の値を返す
 def nz(a, b)
 	return (a.nil?) ? b : a
 end
-
 
 # エンコーディングを忘れ去って単なるバイト列とする
 class String
@@ -83,7 +80,6 @@ end
 #=====dpk=====
 
 #=====dpk===== determine_newlinechar
-
 # 改行文字を判定(推測)する
 def determine_newlinechar(filename)
 	# 先頭部分を読み込み
@@ -120,7 +116,6 @@ end
 #=====dpk=====
 
 #=====dpk===== MsgLogger
-
 class MsgLogger
 	module Severity
 		DEBUG = 0

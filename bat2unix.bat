@@ -1,4 +1,4 @@
-@rem vim:set ft=Ruby : -*- coding:UTF-8 mode:Ruby -*-
+@rem vi:set ft=Ruby ts=4 : -*- coding:UTF-8 mode:Ruby -*-
 @ruby -x -- "%~dpn0.bat" %*
 @goto :eof
 [option]
@@ -7,27 +7,25 @@ use_path
 [exec]
 ruby
 [end]
---------------------------------------------------------
+#----------------------------------------------------------------
 #! /usr/bin/ruby
 # coding: UTF-8
-
+#----------------------------------------------------------------
 # Windows向けのバッチファイルでもあるスクリプトからUNIX向けスクリプトを作成する
 #
 # 2011/03/29 opa
+#----------------------------------------------------------------
 
 ProgName = 'bat2unix'
 Version = '1.00'
 
 #=====dpk===== determine_encode
-
 require 'kconv'
-
 
 # nilなら別の値を返す
 def nz(a, b)
 	return (a.nil?) ? b : a
 end
-
 
 # エンコーディングを忘れ去って単なるバイト列とする
 class String
@@ -77,7 +75,7 @@ end
 
 #=====dpk=====
 
-def convert(filename)
+def bat2unix(filename)
 	# ファイルが存在しなければこのファイルの処理をスキップ
 	if !File.exist?(filename)
 		printf("%s: Not exist: %s\n", ProgName, filename)
@@ -125,7 +123,7 @@ def main()
 		printf("usage: %s [filename...]\n", ProgName)
 	else
 		ARGV.each do |it|
-			convert(it)
+			bat2unix(it)
 		end
 	end
 
