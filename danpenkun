@@ -331,7 +331,7 @@ def load_danpenlib_1(filename)
 	# なければdanpenlibではない → 何もせずリターン
 	if begin_mark.empty?
 		$line = 0
-		$err.warn("Not danpenlib")
+		$log.warn("Not danpenlib")
 		return false
 	end
 
