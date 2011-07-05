@@ -38,7 +38,6 @@ class String
 	end
 end
 
-
 # エンコードを判定(推測)する
 def determine_encode(filename)
 #	zwnbsp = "\ufeff"
@@ -214,7 +213,7 @@ class Danpen
 		@body = []
 
 		# オプション類
-		@expand_once = false	# 一度しか展開しないかどうか
+		@expand_once = true		# 一度しか展開しないかどうか
 
 		# 展開情報
 		@expand_count = 0		# 展開された回数
@@ -250,6 +249,7 @@ def var_init
 	$begin_mark = ""
 	$end_mark = ""
 	$show_danpenlist = false
+	$show_skip_filename = false
 	$make_backup = true
 	$expand_danpen = true
 	$output_mark = true
@@ -330,8 +330,10 @@ def load_danpenlib_1(filename)
 
 	# なければdanpenlibではない → 何もせずリターン
 	if begin_mark.empty?
-		$line = 0
-		$log.warn("Not danpenlib")
+		if $show_skip_filename
+			$line = 0
+			$log.warn("Not danpenlib")
+		end
 		return false
 	end
 
@@ -370,6 +372,8 @@ def load_danpenlib_1(filename)
 						case opt
 						when "once"
 							d.expand_once = true
+						when "eachtime"
+							d.expand_once = false
 						else
 							$log.error("Danpendef syntax error: #{aline}")
 						end
@@ -668,6 +672,8 @@ def do_danpenlist
 		print(k)
 #		if v.expand_once
 #			print(" once")
+#		else
+#			print(" eachtime")
 #		end
 		print("\n")
 	end
@@ -728,6 +734,11 @@ def parse_option
 		opt.on("--no-backup",
 			"バックアップ(.bak)を作成しない") do
 			$make_backup = false
+		end
+
+		opt.on("--show-skip-filename",
+			"断片ライブラリとして認識されないファイル名を報告する") do
+			$show_skip_filename = true
 		end
 
 		opt.parse!

@@ -34,7 +34,6 @@ class String
 	end
 end
 
-
 # エンコードを判定(推測)する
 def determine_encode(filename)
 #	zwnbsp = "\ufeff"
