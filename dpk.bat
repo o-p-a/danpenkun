@@ -46,14 +46,14 @@ end
 def determine_lib(filename)
 	ul = ENV["USRLOCAL"]
 	ul = "" if ul.nil?
-	uld = ul + "\\document\\danpenlib"
+	uld = ul + "\\share\\danpenlib"
 
 	ft = [
 		{ :ext => ".bat",		:lib => "#{uld}\\BAT" },
 		{ :ext => ".cbl",		:lib => "#{uld}\\COBOL" },
 		{ :ext => ".c",			:lib => "#{uld}\\CPP" },
 		{ :ext => ".cpp",		:lib => "#{uld}\\CPP" },
-		{ :ext => ".ch",		:lib => "#{uld}\\CPP" },
+		{ :ext => ".h",			:lib => "#{uld}\\CPP" },
 		{ :ext => ".js",		:lib => "#{uld}\\javascript" },
 		{ :ext => ".jsee",		:lib => "#{uld}\\javascript" },
 		{ :ext => ".htm",		:lib => "#{uld}\\javascript" },
@@ -72,7 +72,6 @@ def determine_lib(filename)
 end
 
 def main
-
 	# オプションとファイル名をそれぞれ得る
 	opts, files = sort_opts_files(ARGV)
 
@@ -93,6 +92,7 @@ def main
 				printf($stderr, "#{ProgName}: cannot detarmine library path: #{a_file}\n")
 			else
 				joined_args = [opts, "--library-path=#{lib}", a_file].flatten
+p joined_args
 				if !system("danpenkun", *joined_args)
 					return 1
 				end
