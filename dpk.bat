@@ -21,19 +21,250 @@ ProgName = 'dpk'
 Version = '0.01'
 DANPENLIBPATHNAME = "DANPENLIB"
 
+#=====dpk===== nz
+# nilなら別の値を返す
+def nz(a, b)
+	return (a.nil?) ? b : a
+end
+
+#=====dpk=====
+
+#=====dpk===== determine_mimetype
+# エンコーディングを忘れ去って単なるバイト列とする
+class String
+	def verbatim
+		self.force_encoding(Encoding::BINARY)
+	end
+end
+
+
+# MIME Type 管理用クラス
+class Mimetype
+	TABLE = [
+		{ :mimetype => "application/pdf",			:mode => ["pdf"],								:bin => [],						:ext => ["pdf"] },
+		{ :mimetype => "application/x-applescript",	:mode => ["applescript"],						:bin => [],						:ext => ["scpt"] },
+		{ :mimetype => "application/x-javascript",	:mode => ["javascript", "js"],					:bin => ["cscript", "wscript"],	:ext => ["js", "javascript", "jsee"] },
+		{ :mimetype => "application/x-sh",			:mode => ["sh", "bash"],						:bin => ["sh", "bash"],			:ext => ["sh"] },
+		{ :mimetype => "application/xml-dtd",		:mode => ["dtd"],								:bin => [],						:ext => ["dtd"] },
+		{ :mimetype => "text/css",					:mode => ["css"],								:bin => [],						:ext => ["css"] },
+		{ :mimetype => "text/html",					:mode => ["html"],								:bin => [],						:ext => ["html", "htm", "shtml", "stm"] },
+		{ :mimetype => "text/inf",					:mode => ["inform"],							:bin => [],						:ext => ["inf"] },
+		{ :mimetype => "text/jsp",					:mode => ["jsp"],								:bin => [],						:ext => ["jsp"] },
+		{ :mimetype => "text/plain",				:mode => ["text", "default"],					:bin => [],						:ext => ["text", "txt", "log"] },
+		{ :mimetype => "text/plain/tab4",			:mode => ["tab4"],								:bin => [],						:ext => [] },
+		{ :mimetype => "text/plain/tab8",			:mode => ["tab8"],								:bin => [],						:ext => [] },
+		{ :mimetype => "text/sgml",					:mode => ["sgml"],								:bin => [],						:ext => ["sgml", "sgm"] },
+		{ :mimetype => "text/x-asm",				:mode => ["asm"],								:bin => [],						:ext => ["asm", "s"] },
+		{ :mimetype => "text/x-autohotkey",			:mode => ["autohotkey"],						:bin => ["autohotkey"],			:ext => ["ahk"] },
+		{ :mimetype => "text/x-automake",			:mode => ["automake"],							:bin => ["automake"],			:ext => ["am"] },
+		{ :mimetype => "text/x-awk",				:mode => ["awk"],								:bin => ["awk", "gawk"],		:ext => ["awk"] },
+		{ :mimetype => "text/x-c++src",				:mode => ["cpp", "cc"],							:bin => [],						:ext => ["cpp", "c++", "cc", "cxx", "hpp", "h++"] },
+		{ :mimetype => "text/x-cobol",				:mode => ["cobol"],								:bin => [],						:ext => ["cbl", "cob"] },
+		{ :mimetype => "text/x-csharp",				:mode => ["cs"],								:bin => [],						:ext => ["cs"] },
+		{ :mimetype => "text/x-csrc",				:mode => ["c"],									:bin => [],						:ext => ["c", "h"] },
+		{ :mimetype => "text/x-dosini",				:mode => ["dosini"],							:bin => [],						:ext => ["ini"] },
+		{ :mimetype => "text/x-java",				:mode => ["java"],								:bin => [],						:ext => ["java", "jav"] },
+		{ :mimetype => "text/x-lex",				:mode => ["lex"],								:bin => ["lex", "flex"],		:ext => ["lex"] },
+		{ :mimetype => "text/x-lisp",				:mode => ["lisp"],								:bin => [],						:ext => ["lisp", "lsp", "el"] },
+		{ :mimetype => "text/x-makefile",			:mode => ["make", "cmake"],						:bin => ["make"],				:ext => ["mak", "mk"] },
+		{ :mimetype => "text/x-msdos-batch",		:mode => ["dosbatch", "dosbat", "bat", "cmd"],	:bin => ["cmd"],				:ext => ["bat", "cmd"] },
+		{ :mimetype => "text/x-nsis",				:mode => ["nsis"],								:bin => [],						:ext => ["nsi"] },
+		{ :mimetype => "text/x-objcsrc",			:mode => ["objc", "objcpp"],					:bin => [],						:ext => ["m", "mm"] },
+		{ :mimetype => "text/x-pascal",				:mode => ["pascal"],							:bin => [],						:ext => ["pas"] },
+		{ :mimetype => "text/x-perl",				:mode => ["perl", "cperl"],						:bin => ["perl"],				:ext => ["pl"] },
+		{ :mimetype => "text/x-php",				:mode => ["php"],								:bin => ["php"],				:ext => ["php"] },
+		{ :mimetype => "text/x-python",				:mode => ["python"],							:bin => ["python"],				:ext => ["py", "pyw"] },
+		{ :mimetype => "text/x-rc",					:mode => ["rc"],								:bin => ["rc"],					:ext => ["rc"] },
+		{ :mimetype => "text/x-registory",			:mode => ["registry"],							:bin => ["regedit"],			:ext => ["reg"] },
+		{ :mimetype => "text/x-ruby",				:mode => ["ruby"],								:bin => ["ruby"],				:ext => ["rb", "rbw"] },
+		{ :mimetype => "text/x-sql",				:mode => ["sql"],								:bin => [],						:ext => ["sql"] },
+		{ :mimetype => "text/x-tex",				:mode => ["tex"],								:bin => [],						:ext => ["tex"] },
+		{ :mimetype => "text/x-vba",				:mode => ["vb"],								:bin => ["vb"],					:ext => ["bas", "vb", "frm", "cls"] },
+		{ :mimetype => "text/x-vbscript",			:mode => ["vbs"],								:bin => ["cscript", "wscript"],	:ext => ["vbs"] },
+		{ :mimetype => "text/x-yacc",				:mode => ["yacc"],								:bin => ["yacc", "bison"],		:ext => ["y"] },
+		{ :mimetype => "text/x-yaml",				:mode => ["yaml"],								:bin => [],						:ext => ["yaml", "yml"] },
+		{ :mimetype => "text/xml",					:mode => ["xml", "nxml"],						:bin => [],						:ext => ["xml"] },
+	]
+end
+
+# モード名からファイルタイプを返す
+def Mimetype.mode2mimetype(mode)
+	return nil if mode.empty?
+
+	Mimetype::TABLE.each do |item|
+		item[:mode].each do |a_mode|
+			if mode.casecmp(a_mode) == 0
+				return item[:mimetype]
+			end
+		end
+	end
+
+	return nil
+end
+
+# ファイルの冒頭20行をバイト列で得る
+def Mimetype.get_head(filename)
+	r = []
+	File.foreach(filename) do |aline|
+		r.push(aline.chomp[0, 1000].verbatim)
+		break if r.length >= 20
+	end
+	return r
+end
+
+# ファイル名が特定の拡張子(+追加部分)を持つかどうかを返す
+def Mimetype.filename_ends(filename, ext)
+	filename = filename.encode("UTF-8")
+	["", ".bak", ".org", ".orig", ".svn-base", ",v", "~"].each do |adds|
+		if File.fnmatch("*.#{ext}#{adds}", filename, File::FNM_SYSCASE)
+			return true
+		end
+	end
+	return false
+end
+
+# Emacs風 -*- -*- 行
+def Mimetype.guess_modeline_e(head)
+	mode = ""
+	head.each do |aline|
+		if aline =~ /-\*-(.*)-\*-/
+			opt = $1.strip
+			if opt.length >0
+				if opt =~ /^[^\s;:]+$/
+					mode = opt
+				end
+
+				if opt =~ /mode:\s*([^\s;]+)/
+					mode = $1
+				end
+
+				#if opt =~ /tab-width:\s*([^\s;]+)/
+				#	# 非実装
+				#end
+
+				break if !mode.empty?
+			end
+		end
+	end
+
+	return mode2mimetype(mode)
+end
+
+# vi風 vi: 行
+def Mimetype.guess_modeline_v(head)
+	head.each do |aline|
+		if aline =~ /\s(?:ex|vim?):\s*(?:set\s+)?([^:]*)/
+			opt = $1.strip
+			if opt.length >0
+				if opt =~ /(?:ft|filetype)=(\S+)/
+					return mode2mimetype($1)
+				end
+			end
+		end
+	end
+
+	return nil
+end
+
+# sh #!行
+def Mimetype.guess_shebang(head)
+	head.each do |aline|
+		if aline =~ /^#!\s*(?:[\/\\](?:\w+[\/\\])*)?(\w+)(?:\s+(\w+))?/
+			command = $1
+			command = $2 if command == "env"	# "env"だったら次の引数が事実上のコマンド名
+
+			Mimetype::TABLE.each do |item|
+				item[:bin].each do |a_bin|
+					if command == a_bin
+						return item[:mimetype]
+					end
+				end
+			end
+		end
+	end
+
+	return nil
+end
+
+# EmEditor #language行
+def Mimetype.guess_shelang(head)
+	head.each do |aline|
+		break if aline !~ /^#/		#で始まらない行があったらそこで中断
+
+		if aline =~ /^#language\s*(?:=\s*)?"([^"]*)"/
+			return mode2mimetype($1.strip)
+		end
+	end
+
+	return nil
+end
+
+# ファイル名(拡張子等)からファイルタイプを判定する
+def Mimetype.guess_extname(filename)
+	filename = File.basename(filename)
+	Mimetype::TABLE.each do |item|
+		item[:ext].each do |ext|
+			if filename_ends(filename, ext)
+				return item[:mimetype]
+			end
+		end
+	end
+	return nil
+end
+
+# テキストファイルの種類を推測する
+# BUG:判定できるファイルの分野に偏りがある
+def Mimetype.guess(filename)
+	head = get_head(filename)
+
+	r = guess_modeline_e(head)			# Emacs風 -*- -*- 行
+	return r if !r.nil?
+
+	r = guess_modeline_v(head)			# vi風 vi: 行
+	return r if !r.nil?
+
+	r = guess_shebang(head)				# sh #!行
+	return r if !r.nil?
+
+	r = guess_shelang(head)				# EmEditor #language行
+	return r if !r.nil?
+
+	r = guess_extname(filename)			# ファイル名(拡張子等)
+	return r if !r.nil?
+
+	if File.size(filename) == 0			# 空ファイル
+		return "application/x-empty"
+	end
+
+	return "text/plain"
+#	return "application/octet-stream"
+end
+
+def determine_mimetype(filename)
+	return Mimetype.guess(filename)
+end
+
+#=====dpk=====
+
 def sort_opts_files(argv)
 	opts = []
 	files = []
 	next_is_opt = false
+	no_more_opt = false
 
-	argv.each do |av| # BUG : -- (これ以降をファイル名として扱う)を感知しない
-		if next_is_opt
+	argv.each do |av|
+		if no_more_opt
+			files.push(av)
+		elsif next_is_opt
 			opts.push(av)
 			next_is_opt = false
-		elsif av =~ /^-[Lmeo]/ # パラメータを取るオプション
+		elsif av == "--"		# これ以降は全てファイル名として扱う
+			opts.push(av)
+			no_more_opt = true
+		elsif av =~ /^-[Lmeo]/	# パラメータが続くオプション
 			opts.push(av)
 			next_is_opt = true
-		elsif av =~ /^-/
+		elsif av =~ /^-/		# それ以外のオプション
 			opts.push(av)
 		else
 			files.push(av)
@@ -43,29 +274,27 @@ def sort_opts_files(argv)
 	return opts, files
 end
 
-def determine_lib(filename)
-	ul = ENV["USRLOCAL"]
-	ul = "" if ul.nil?
-	uld = ul + "\\share\\danpenlib"
+def determine_danpenlib(filename)
+	uld = nz(ENV["USRLOCAL"], "") + "\\share\\danpenlib"
 
-	ft = [
-		{ :ext => ".bat",		:lib => "#{uld}\\BAT" },
-		{ :ext => ".cbl",		:lib => "#{uld}\\COBOL" },
-		{ :ext => ".c",			:lib => "#{uld}\\CPP" },
-		{ :ext => ".cpp",		:lib => "#{uld}\\CPP" },
-		{ :ext => ".h",			:lib => "#{uld}\\CPP" },
-		{ :ext => ".js",		:lib => "#{uld}\\javascript" },
-		{ :ext => ".jsee",		:lib => "#{uld}\\javascript" },
-		{ :ext => ".htm",		:lib => "#{uld}\\javascript" },
-		{ :ext => ".html",		:lib => "#{uld}\\javascript" },
-		{ :ext => ".rb",		:lib => "#{uld}\\ruby" },
-		{ :ext => ".pl",		:lib => "#{uld}\\perl" },
-	]
+	mimetype = determine_mimetype(filename)
+	printf("%s: %s\n", filename, mimetype)
 
-	ft.each do |a_ft|
-		if File.extname(filename) == a_ft[:ext]
-			return a_ft[:lib]
-		end
+	case mimetype
+	when "text/x-msdos-batch"
+		return "#{uld}\\BAT"
+	when "text/x-cobol"
+		return "#{uld}\\COBOL"
+	when "text/x-c++src", "text/x-csrc"
+		return "#{uld}\\CPP"
+	when "application/x-javascript"
+		return "#{uld}\\javascript"
+	when "text/x-perl"
+		return "#{uld}\\perl"
+	when "text/x-ruby"
+		return "#{uld}\\ruby"
+	when "application/x-sh"
+		return "#{uld}\\sh"
 	end
 
 	return nil
@@ -85,14 +314,13 @@ def main
 			# ライブラリの位置が環境変数で与えられていない場合、拡張子から推定する
 			lib = ENV[DANPENLIBPATHNAME]
 			if lib.nil?
-				lib = determine_lib(a_file)
+				lib = determine_danpenlib(a_file)
 			end
 
 			if lib.nil?
 				printf($stderr, "#{ProgName}: cannot detarmine library path: #{a_file}\n")
 			else
 				joined_args = [opts, "--library-path=#{lib}", a_file].flatten
-p joined_args
 				if !system("danpenkun", *joined_args)
 					return 1
 				end
