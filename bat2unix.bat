@@ -1,4 +1,5 @@
-@rem vi:set ft=Ruby ts=4 : -*- coding:UTF-8 mode:Ruby -*-
+@rem -*- mode:Ruby; tab-width:4; coding:UTF-8; -*-
+@rem vi:set ft=ruby ts=4 fenc=UTF-8 :
 @ruby -x -- "%~dpn0.bat" %*
 @goto :eof
 [option]

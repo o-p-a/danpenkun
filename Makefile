@@ -9,12 +9,12 @@ DFLAGS = -L $(DANPENLIB) -m '\#=====dpk====='
 
 .PHONY: all install
 
-all: danpenkun.ini danpenkun
+all: danpenkun dpk bat2unix.bat
 
-danpenkun: danpenkun.ini bat2unix.bat
-	bat2unix $<
+danpenkun: $(DANPENFILES)
+	danpenkun $(DFLAGS) $@
 
-danpenkun.ini: $(DANPENFILES)
+dpk: $(DANPENFILES)
 	danpenkun $(DFLAGS) $@
 
 bat2unix.bat: $(DANPENFILES)
@@ -22,7 +22,8 @@ bat2unix.bat: $(DANPENFILES)
 
 
 install:
+	cp -p danpenkun $(USRLOCAL)/bat
 	cp -p danpenkun.exe $(USRLOCAL)/bat
-	cp -p danpenkun.ini $(USRLOCAL)/bat
-	cp -p dpk.bat $(USRLOCAL)/bat
+	cp -p dpk $(USRLOCAL)/bat
+	cp -p dpk.exe $(USRLOCAL)/bat
 
