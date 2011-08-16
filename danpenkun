@@ -16,14 +16,6 @@ ProgName = 'DanPenKun'
 Version = '0.01'
 DANPENLIBPATHNAME = "DANPENLIB"
 
-#=====dpk===== os_is_windows
-# Windows環境下かどうか判定する
-def os_is_windows
-	return RUBY_PLATFORM.downcase =~ /mswin(?!ce)|mingw|cygwin|bccwin/
-end
-
-#=====dpk=====
-
 #=====dpk===== determine_encode
 require 'kconv'
 
@@ -80,6 +72,11 @@ end
 #=====dpk=====
 
 #=====dpk===== determine_newlinechar
+# Windows環境下かどうか判定する
+def os_is_windows
+	return RUBY_PLATFORM.downcase =~ /mswin(?!ce)|mingw|cygwin|bccwin/
+end
+
 # 改行文字を判定(推測)する
 def determine_newlinechar(filename)
 	# 先頭部分を読み込み

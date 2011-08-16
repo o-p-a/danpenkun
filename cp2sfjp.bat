@@ -1,5 +1,12 @@
-pushd "%~dp0"
-copy danpenkun sfjp
-copy danpenkun.exe sfjp
-copy Makefile sfjp
-popd
+@pushd "%~dp0"
+@setlocal
+::
+@set "BASE=danpenkun"
+@set "TGT=sfjp"
+::
+copy "%BASE%"		"%TGT%"
+copy "%BASE%.exe"	"%TGT%"
+::
+@endlocal
+@popd
+pause
