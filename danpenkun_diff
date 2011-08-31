@@ -1,0 +1,16 @@
+#! /bin/sh
+# -*- mode:sh; tab-width:4; coding:UTF-8; -*-
+# vi:set ft=sh ts=4 fenc=UTF-8 :
+#----------------------------------------------------------------
+# diff for danpenkun
+#
+# 2011/08/25 opa
+#----------------------------------------------------------------
+
+# $1 : myfile path
+# $2 : newfile path
+
+# $3 : myfile label
+# $4 : newfile label
+
+colordiff -d "$1" "$2"

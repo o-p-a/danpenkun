@@ -678,8 +678,8 @@ def do_danpenlist
 end
 
 # コマンドラインオプションを解釈する
-def parse_option
-	ARGV.options do |opt|
+def parse_option(argv)
+	argv.options do |opt|
 		opt.banner = "Usage: #{ProgName} [options] file..."
 
 		opt.on("-L", "--library-path=searchdir", String,
@@ -764,7 +764,7 @@ def main
 		if $show_danpenlist == true
 			do_danpenlist
 		else
-			ARGV.each do |a|
+			argv.each do |a|
 				do_danpen(a)
 			end
 		end
@@ -776,5 +776,4 @@ def main
 	return 0
 end
 
-exit main
-
+exit main(ARGV)

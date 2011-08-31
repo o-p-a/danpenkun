@@ -22,8 +22,8 @@ bat2unix.bat: $(DANPENFILES)
 
 
 install:
-	cp -p danpenkun $(USRLOCAL)/bat
-	cp -p danpenkun.exe $(USRLOCAL)/bat
-	cp -p dpk $(USRLOCAL)/bat
-	cp -p dpk.exe $(USRLOCAL)/bat
+	cp -p danpenkun $(USRLOCAL)/bin
+	cp -p danpenkun.exe $(USRLOCAL)/bin
+	cp -p dpk $(USRLOCAL)/bin
+	cp -p dpk.exe $(USRLOCAL)/bin
 

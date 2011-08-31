@@ -290,9 +290,9 @@ def determine_danpenlib(filename)
 	return nil
 end
 
-def main
+def main(argv)
 	# オプションとファイル名をそれぞれ得る
-	opts, files = sort_opts_files(ARGV)
+	opts, files = sort_opts_files(argv)
 
 	# 断片くん本体を起動する
 	if files.empty?
@@ -321,5 +321,5 @@ def main
 	return 0
 end
 
-exit main
+exit main(ARGV)
 
