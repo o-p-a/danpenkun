@@ -748,7 +748,7 @@ def parse_option(argv)
 	end
 end
 
-def main
+def main(argv)
 	if RUBY_VERSION < "1.9"
 		abort("Must use Ruby 1.9 or later")
 	end
@@ -757,7 +757,7 @@ def main
 
 		var_init
 
-		parse_option
+		parse_option(argv)
 
 		load_danpenlib
 
