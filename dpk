@@ -27,7 +27,6 @@ class String
 	end
 end
 
-
 # MIME Type 管理用クラス
 class Mimetype
 	TABLE = [

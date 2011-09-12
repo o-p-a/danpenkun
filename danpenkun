@@ -43,16 +43,16 @@ def determine_encode(filename)
 		coding = $1
 
 		case coding.upcase
+		when "UTF-32BE"
+			return "BOM|UTF-32BE"	if data[0..3] == "\x00\x00\xFE\xFF".verbatim
+		when "UTF-32LE"
+			return "BOM|UTF-32LE"	if data[0..3] == "\xFF\xFE\x00\x00".verbatim
 		when "UTF-8"
 			return "BOM|UTF-8"		if data[0..2] == "\xEF\xBB\xBF".verbatim
 		when "UTF-16BE"
 			return "BOM|UTF-16BE"	if data[0..1] == "\xFE\xFF".verbatim
 		when "UTF-16LE"
 			return "BOM|UTF-16LE"	if data[0..1] == "\xFF\xFE".verbatim
-		when "UTF-32BE"
-			return "BOM|UTF-32BE"	if data[0..3] == "\x00\x00\xFE\xFF".verbatim
-		when "UTF-32LE"
-			return "BOM|UTF-32LE"	if data[0..3] == "\xFF\xFE\x00\x00".verbatim
 		end
 
 		return coding
