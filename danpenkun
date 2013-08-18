@@ -1,4 +1,4 @@
-#! /usr/bin/ruby
+#! /usr/bin/ruby -E:UTF-8
 # -*- mode:Ruby; tab-width:4; coding:UTF-8; -*-
 # vi:set ft=ruby ts=4 fenc=UTF-8 :
 #----------------------------------------------------------------
@@ -16,92 +16,100 @@ ProgName = 'DanPenKun'
 Version = '0.01'
 DANPENLIBPATHNAME = "DANPENLIB"
 
-#=====dpk===== determine_encode
-require 'kconv'
+#=====dpk===== determine_encoding
+require 'nkf'
 
 # nilなら別の値を返す
-def nz(a, b)
-	return (a.nil?) ? b : a
+module Kernel
+	def nz(a, b=0)
+		a.nil? ? b : a
+	end
 end
-
 # エンコーディングを忘れ去って単なるバイト列とする
 class String
-	def verbatim
-		self.force_encoding(Encoding::BINARY)
-	end
+	def verbatim!; force_encoding(Encoding::ASCII_8BIT); end
+	def verbatim; dup.verbatim!; end
 end
 
 # エンコードを判定(推測)する
-def determine_encode(filename)
-#	zwnbsp = "\ufeff"
-
+def determine_encoding(filename)
 	# 先頭部分を読み込み
-	data = nz(File.read(filename, 2000, 0), "").verbatim
+	data = nz(File.read(filename, 2000, 0), "").verbatim!
 
 	# coding指定があればそれを信じる
 	if data =~ /coding[:=]\s*([\w.-]+)/
 		coding = $1
 
+		# coding指定と矛盾しないBOMがついていればBOM付きとして返す
 		case coding.upcase
-		when "UTF-32BE"
-			return "BOM|UTF-32BE"	if data[0..3] == "\x00\x00\xFE\xFF".verbatim
-		when "UTF-32LE"
-			return "BOM|UTF-32LE"	if data[0..3] == "\xFF\xFE\x00\x00".verbatim
-		when "UTF-8"
-			return "BOM|UTF-8"		if data[0..2] == "\xEF\xBB\xBF".verbatim
-		when "UTF-16BE"
-			return "BOM|UTF-16BE"	if data[0..1] == "\xFE\xFF".verbatim
-		when "UTF-16LE"
-			return "BOM|UTF-16LE"	if data[0..1] == "\xFF\xFE".verbatim
+		  when "UTF-32BE"
+			return "BOM|UTF-32BE"	if data[0..3] == "\x00\x00\xFE\xFF".verbatim!
+		  when "UTF-32LE"
+			return "BOM|UTF-32LE"	if data[0..3] == "\xFF\xFE\x00\x00".verbatim!
+		  when "UTF-8"
+			return "BOM|UTF-8"		if data[0..2] == "\xEF\xBB\xBF".verbatim!
+		  when "UTF-16BE"
+			return "BOM|UTF-16BE"	if data[0..1] == "\xFE\xFF".verbatim!
+		  when "UTF-16LE"
+			return "BOM|UTF-16LE"	if data[0..1] == "\xFF\xFE".verbatim!
 		end
 
+		# さもなければそのまま
 		return coding
 	end
 
-	# BOMがあればそれを信じる
-	return "BOM|UTF-32BE"		if data[0..3] == "\x00\x00\xFE\xFF".verbatim
-	return "BOM|UTF-32LE"		if data[0..3] == "\xFF\xFE\x00\x00".verbatim
-	return "BOM|UTF-8"			if data[0..2] == "\xEF\xBB\xBF".verbatim
-	return "BOM|UTF-16BE"		if data[0..1] == "\xFE\xFF".verbatim
-	return "BOM|UTF-16LE"		if data[0..1] == "\xFF\xFE".verbatim
+	# coding指定がなく、BOMがあればそれを信じる
+	return "BOM|UTF-32BE"		if data[0..3] == "\x00\x00\xFE\xFF".verbatim!
+	return "BOM|UTF-32LE"		if data[0..3] == "\xFF\xFE\x00\x00".verbatim!
+	return "BOM|UTF-8"			if data[0..2] == "\xEF\xBB\xBF".verbatim!
+	return "BOM|UTF-16BE"		if data[0..1] == "\xFE\xFF".verbatim!
+	return "BOM|UTF-16LE"		if data[0..1] == "\xFF\xFE".verbatim!
 
-	# いずれもなければKconvで推測する
-	return Kconv.guess(data).to_s
+	# いずれもなければNKFで推測する
+	g = NKF::guess(data)
+	g = Encoding.default_external  if g == Encoding::US_ASCII
+	return g.to_s
 end
 
 #=====dpk=====
 
 #=====dpk===== determine_newlinechar
-# Windows環境下かどうか判定する
-def os_is_windows
-	return RUBY_PLATFORM.downcase =~ /mswin(?!ce)|mingw|cygwin|bccwin/
+# 改行文字の定数
+class String
+	CR = "\r"		if !String.constants.include?(:CR)
+	LF = "\n"		if !String.constants.include?(:LF)
+	CRLF = "\r\n"	if !String.constants.include?(:CRLF)
 end
 
+# Windows環境下かどうか判定する
+module Kernel
+	if RUBY_PLATFORM =~ /mswin(?!ce)|mingw|cygwin|bccwin|emx/i
+		def os_is_windows?; true; end
+	else
+		def os_is_windows?; false; end
+	end
+end
 # 改行文字を判定(推測)する
 def determine_newlinechar(filename)
 	# 先頭部分を読み込み
-	data = nz(File.read(filename, 2000, 0), "").verbatim
+	data = nz(File.read(filename, 2000, 0), "").verbatim!
 
 	# それぞれの改行の個数を数える
-	crlf_count = data.scan(/\r\n/).count
-	cr_count = data.scan(/\r/).count - crlf_count
-	lf_count = data.scan(/\n/).count - crlf_count
+	crlf_count = data.scan(/#{String::CRLF}/).count
+	cr_count = data.scan(/#{String::CR}/).count - crlf_count
+	lf_count = data.scan(/#{String::LF}/).count - crlf_count
 
 	# 多数決っぽく判定する
 	if cr_count < crlf_count && lf_count < crlf_count
-		return "\r\n" # CRLF
+		return String::CRLF
 	elsif cr_count < lf_count && crlf_count < lf_count
-		return "\n" # LF
+		return String::LF
 	elsif lf_count < cr_count && crlf_count < cr_count
-		return "\r" # CR
+		return String::CR
 	end
 
 	# どれともいえないときはOSで判定
-	if os_is_windows
-		return "\r\n" # CRLF
-	else
-		return "\n" # LF
-	end
+	return os_is_windows? ? String::CRLF : String::LF
 end
 
 #=====dpk=====
@@ -187,6 +195,20 @@ class MsgLogger
 			printf(@os, "%s: fatal: %s\n", get_prefix, message)
 		end
 		raise Error, message
+	end
+end
+
+#=====dpk=====
+
+#=====dpk===== File.unify_separator
+# ALT_SEPARATORがある環境では、ALT_SEPARATOR を SEPARATOR に統一する
+if !File::ALT_SEPARATOR.nil?
+	def File.unify_separator(pathname)
+		return pathname.gsub(File::ALT_SEPARATOR, File::SEPARATOR)
+	end
+else
+	def File.unify_separator(pathname)
+		return pathname.dup
 	end
 end
 
@@ -286,12 +308,12 @@ def load_danpenlib_1(filename)
 	end
 
 	# 文字コードを決定
-	encode = determine_encode(filename)
-	$log.debug("Assuming encode: #{encode}")
+	encoding = determine_encoding(filename)
+	$log.debug("Assuming encoding: #{encoding}")
 
 	# とりあえず全体を読んじゃう ついでにUTF-8に統一する
 	infile = []
-	File.open(filename, "r:#{encode}:internal") do |is|
+	File.open(filename, "r:#{encoding}") do |is|
 		infile = is.readlines
 
 		$line = 0
@@ -301,11 +323,11 @@ def load_danpenlib_1(filename)
 			begin
 				aline.encode!("UTF-8")
 			rescue Encoding::UndefinedConversionError
-				$log.error("Invalid byte sequence in #{encode}")
+				$log.error("Invalid byte sequence in #{encoding}")
 			end
 
 			if !aline.valid_encoding?
-				$log.error("Invalid byte sequence in #{encode}")
+				$log.error("Invalid byte sequence in #{encoding}")
 			end
 		end
 	end
@@ -440,10 +462,7 @@ def load_danpenlib
 		$danpenlibpath = ""
 	end
 
-	# (例えば)Windowsの場合、"\\"を"/"に置換
-	if !File::ALT_SEPARATOR.nil?
-		$danpenlibpath = $danpenlibpath.gsub(File::ALT_SEPARATOR, File::SEPARATOR)
-	end
+	$danpenlibpath = File.unify_separator($danpenlibpath)
 
 	$danpenlibpath.split(File::PATH_SEPARATOR).each do |a_path|
 		if !a_path.empty?
@@ -481,7 +500,7 @@ def out(s)
 end
 
 # 出力データを実際に出力
-def flush_outbuf(input_filename, encode, newlinechar)
+def flush_outbuf(input_filename, encoding, newlinechar)
 	# 最終的なファイル名を決定
 	filename = $output_filename
 	if filename.empty?
@@ -496,13 +515,13 @@ def flush_outbuf(input_filename, encode, newlinechar)
 	end
 
 	# エンコードとBOM有無を決定
-	output_encode = encode.sub(/^BOM\|/, "")
-	output_bom = (encode =~ /^BOM\|/) ? true : false
+	output_encoding = encoding.sub(/^BOM\|/, "")
+	output_bom = (encoding =~ /^BOM\|/) ? true : false
 
-	File.open(filename, "wb:#{output_encode}:internal") do |os|
+	File.open(filename, "wb:#{output_encoding}") do |os|
 		# BOM出力
 		if output_bom
-			os.print("\xFE\xFF".force_encoding("UTF-16BE"))
+			os.print("\ufeff") # ZWNBSP(BOM)
 		end
 
 		# 本体出力
@@ -569,14 +588,14 @@ def do_danpen(filename)
 	$log.debug("Expand mark: #{mark_str}")
 
 	# 文字コード・改行コードを決定
-	encode = determine_encode(filename)
-	$log.debug("Assuming encode: #{encode}")
+	encoding = determine_encoding(filename)
+	$log.debug("Assuming encoding: #{encoding}")
 	newlinechar = determine_newlinechar(filename)
 	$log.debug("Assuming newline character: #{newlinechar.dump}")
 
 	# とりあえず全体を読む ついでにUTF-8に統一する
 	infile = []
-	File.open(filename, "r:#{encode}:internal") do |is|
+	File.open(filename, "r:#{encoding}") do |is|
 		infile = is.readlines
 
 		$line = 0
@@ -586,11 +605,11 @@ def do_danpen(filename)
 			begin
 				aline.encode!("UTF-8")
 			rescue Encoding::UndefinedConversionError
-				$log.error("Invalid byte sequence in #{encode}")
+				$log.error("Invalid byte sequence in #{encoding}")
 			end
 
 			if !aline.valid_encoding?
-				$log.error("Invalid byte sequence in #{encode}")
+				$log.error("Invalid byte sequence in #{encoding}")
 			end
 		end
 	end
@@ -662,7 +681,7 @@ def do_danpen(filename)
 	end
 	$filename = ""
 
-	flush_outbuf(filename, encode, newlinechar)
+	flush_outbuf(filename, encoding, newlinechar)
 end
 
 # 断片一覧処理
@@ -685,7 +704,7 @@ def parse_option(argv)
 		opt.banner = "Usage: #{ProgName} [options] file..."
 
 		opt.on("-L", "--library-path=searchdir", String,
-			"断片ライブラリのパス") do |v|
+			"断片ライブラリのパス ($#{DANPENLIBPATHNAME})") do |v|
 
 			$danpenlibpath += File::PATH_SEPARATOR if !$danpenlibpath.empty?
 			$danpenlibpath += v
